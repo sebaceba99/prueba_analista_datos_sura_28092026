@@ -14,7 +14,58 @@
 Solo cambiaría la función `generar_datos()` de `datos.py`; el resto del tablero no se entera. Leería las tablas gold ya validadas (no las crudas) desde el endpoint SQL del Lakehouse de Fabric con `pyodbc` o `sqlalchemy` y el driver ODBC 18, autenticando con una identidad de servicio (service principal de Entra ID) cuyas credenciales viven en variables de entorno o en Azure Key Vault, nunca en el código. Para no recalcular en cada clic, traería los datos agregados al grano mensual y usaría `st.cache_data` con un tiempo de vida alineado a la actualización diaria del pipeline (Sección 2.3), mostrando en el encabezado la fecha de corte real. Las metas pasarían a una tabla mantenida por el negocio. Para que cada coordinador vea solo sus clientes, la app lo identificaría con el inicio de sesión corporativo y aplicaría el mismo filtro de asignaciones que el RLS del modelo semántico; o bien consultaría directamente el modelo semántico de Power BI (API `executeQueries`) para heredar sus medidas y su seguridad sin duplicarlas.
 
 
+## Modelo de datos
 
+Esquema estrella: las dimensiones filtran a las tablas de hechos. Cada hecho se agrupa por mes antes de combinarse con los demás, porque tienen granularidades distintas.
+
+```mermaid
+erDiagram
+    METAS_CLASE_RIESGO ||--o{ CLIENTES : "clase"
+    CLIENTES ||--o{ FACTURACION : "trabajadores"
+    CLIENTES ||--o{ CASOS : "incidentes"
+    CLIENTES ||--o{ PREVENCION : "actividades"
+    CALENDARIO_MES ||--o{ FACTURACION : "mes"
+    CALENDARIO_MES ||--o{ CASOS : "mes"
+    CALENDARIO_MES ||--o{ PREVENCION : "mes"
+
+    METAS_CLASE_RIESGO {
+        int clase_riesgo PK
+        float meta_tasa "0,25 a 1,25"
+    }
+    CLIENTES {
+        string id_cliente PK
+        string nombre
+        string sector
+        int clase_riesgo FK "1 a 5"
+        string coordinador
+    }
+    CALENDARIO_MES {
+        date periodo PK "primer dia del mes"
+    }
+    FACTURACION {
+        string id_cliente PK, FK
+        date periodo PK, FK "1 fila por cliente y mes"
+        int trabajadores_activos "denominador de la tasa"
+        float valor_contrato
+    }
+    CASOS {
+        int id_caso PK
+        string id_cliente FK
+        date periodo FK "mes de fecha_ocurrencia"
+        date fecha_ocurrencia
+        string tipo "leve o grave"
+        int dias_ausencia
+        float costo
+    }
+    PREVENCION {
+        int id_actividad PK
+        string id_cliente FK
+        date periodo FK "mes de fecha"
+        date fecha
+        string tipo
+        int participantes
+    }
+```
 
 
 ## Para quién es y qué decide
@@ -75,58 +126,7 @@ Un indicador es **KPI** si cumple tres condiciones: está atado a un objetivo co
 - `app.py`: solo presentación. Una función por página y por visual.
 - `.streamlit/config.toml`: color de los controles (azul neutro).
 
-## Modelo de datos
 
-Esquema estrella: las dimensiones filtran a las tablas de hechos. Cada hecho se agrupa por mes antes de combinarse con los demás, porque tienen granularidades distintas.
-
-```mermaid
-erDiagram
-    CLIENTES ||--o{ FACTURACION : "trabajadores por mes"
-    CLIENTES ||--o{ CASOS : "incidentes"
-    CLIENTES ||--o{ PREVENCION : "actividades"
-    CALENDARIO_MES ||--o{ FACTURACION : "periodo"
-    CALENDARIO_MES ||--o{ CASOS : "periodo"
-    CALENDARIO_MES ||--o{ PREVENCION : "periodo"
-    METAS_CLASE_RIESGO ||--o{ CLIENTES : "clase_riesgo"
-
-    CLIENTES {
-        string id_cliente PK
-        string nombre
-        string sector
-        int clase_riesgo "1 a 5"
-        string coordinador
-    }
-    FACTURACION {
-        string id_cliente FK
-        date periodo FK "1 fila por cliente y mes"
-        int trabajadores_activos "denominador de la tasa"
-        float valor_contrato
-    }
-    CASOS {
-        int id_caso PK
-        string id_cliente FK
-        date periodo FK
-        date fecha_ocurrencia
-        string tipo "leve o grave"
-        int dias_ausencia
-        float costo
-    }
-    PREVENCION {
-        int id_actividad PK
-        string id_cliente FK
-        date periodo FK
-        date fecha
-        string tipo
-        int participantes
-    }
-    CALENDARIO_MES {
-        date periodo PK "primer dia del mes"
-    }
-    METAS_CLASE_RIESGO {
-        int clase_riesgo PK
-        float meta_tasa "0,25 a 1,25"
-    }
-```
 
 **Medidas principales** (definidas una sola vez en `datos.py`):
 
