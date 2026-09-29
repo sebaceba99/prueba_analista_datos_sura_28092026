@@ -1,0 +1,3 @@
+[theme]
+# Azul neutro para controles: el rojo y el verde se reservan para el semáforo
+primaryColor = "#2a78d6"

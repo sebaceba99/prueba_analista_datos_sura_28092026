@@ -1,0 +1,7 @@
+__pycache__/
+.pytest_cache/
+.venv/
+seccion_3/datos/
+seccion_3/salidas/
+*.pyc
+~$*
