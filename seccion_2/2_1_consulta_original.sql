@@ -1,5 +1,24 @@
-/* Consulta original recibida (Sección 2.1), sin cambios, para referencia.
-   Ver 2_1_consulta_corregida.sql y el documento de respuestas para el análisis. */
+/* Consulta original  (Sección 2.1), sin cambios, para referencia.
+  
+  ¿ Para que sirve ?
+  
+  La consulta toma a todos los clientes activos que tuvieron al menos un incidente en el último año y, para cada uno,
+  cuenta cuántos casos tuvo, cuántos fueron graves, cuánto costaron en total y cuántos trabajadores tiene en promedio.
+  Con eso calcula qué porcentaje de sus casos fueron graves y cuánto cuestan los casos por cada trabajador. 
+  
+  Al final ordena a los clientes de mayor a menor costo y les pone una posición dentro de su nivel de riesgo, para responder
+  preguntas como “entre los clientes de riesgo 5, ¿cuál nos cuesta más?”. Sirve para priorizar la atención y para conversaciones
+  comerciales o de renovación de contrato con los clientes más costosos. 
+  
+  Errores:
+
+  El principal error de la consulta es que cruza dos tablas de hechos antes de hacer el groupby, lo que puede ocasionar que se multiplquen
+  el número de filas de la tabla ocasionando así cálculos inconsistentes. La solución es agrupar cada tabla para que queden todas en el mismo
+  nivel de granularidad antes de cruzarlas, por otra parte la columna "trabajadores_activos" es un número entero, por lo cual debemos hacer
+  casteo al promedio.  
+  
+  
+   */
 WITH base AS (
     SELECT
         c.id_cliente, c.nombre, c.clase_riesgo,
@@ -22,3 +41,5 @@ SELECT *,
     DENSE_RANK() OVER (PARTITION BY clase_riesgo
                        ORDER BY costo_total DESC)       AS ranking_clase
 FROM base WHERE total_casos > 0 ORDER BY costo_total DESC;
+
+
